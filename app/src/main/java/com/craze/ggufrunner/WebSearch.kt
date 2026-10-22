@@ -18,21 +18,21 @@ object WebSearch {
         }
         return try {
             val html = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val blocks = Regex("(?is)<div[^>]*class=[\"'][^'\"']*result__body[^'\"']*[\"'][^>]*>(.*?)</div>\\s*</div>").findAll(html)
-                .map { it.groupValues[1] }.toList()
+            val blocks = Regex("""(?is)<div[^>]*class=["'][^"']*result__body[^"']*["'][^>]*>(.*?)</div>\s*</div>""")
+                .findAll(html).map { it.groupValues[1] }.toList()
             val parsed = blocks.mapNotNull { block ->
-                val a = Regex("(?is)<a(?=[^>]*class=[\"'][^'\"']*result__a)[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>").find(block)
-                    ?: Regex("(?is)<a[^>]*href=[\"']([^\"']+)[\"'][^>]*class=[\"'][^'\"']*result__a[^'\"']*[\"'][^>]*>(.*?)</a>").find(block)
+                val a = Regex("""(?is)<a(?=[^>]*class=["'][^"']*result__a)[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""").find(block)
+                    ?: Regex("""(?is)<a[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*result__a[^"']*["'][^>]*>(.*?)</a>""").find(block)
                     ?: return@mapNotNull null
                 val href = decodeRedirect(a.groupValues[1])
                 if (!href.startsWith("http")) return@mapNotNull null
                 val title = clean(a.groupValues[2])
-                val snippet = Regex("(?is)<(?:a|div)[^>]*class=[\"'][^'\"']*result__snippet[^'\"']*[\"'][^>]*>(.*?)</(?:a|div)>")
+                val snippet = Regex("""(?is)<(?:a|div)[^>]*class=["'][^"']*result__snippet[^"']*["'][^>]*>(.*?)</(?:a|div)>""")
                     .find(block)?.groupValues?.get(1)?.let(::clean).orEmpty()
                 if (title.isBlank()) null else WebResult(title, href, snippet)
             }.distinctBy { it.url }.take(limit)
-            // Some DDG markup versions do not wrap each result in result__body; use a title/snippet fallback.
             val base = if (parsed.isNotEmpty()) parsed else parseFallback(html, limit)
+            // Fetch only the first three result pages to limit latency and data usage.
             base.take(3).map { it.copy(pageText = readPage(it.url)) } + base.drop(3)
         } finally {
             conn.disconnect()
@@ -49,13 +49,16 @@ object WebSearch {
         try {
             if (connection.responseCode !in 200..299) return@runCatching ""
             val html = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(1_500_000) }
-            clean(html.replace(Regex("(?is)<script.*?</script>|<style.*?</style>|<nav.*?</nav>|<footer.*?</footer>|<header.*?</header>"), " "))
+            clean(html.replace(Regex("""(?is)<script.*?</script>|<style.*?</style>|<nav.*?</nav>|<footer.*?</footer>|<header.*?</header>"""), " "))
                 .take(4500)
-        } finally { connection.disconnect() }
+        } finally {
+            connection.disconnect()
+        }
     }.getOrDefault("")
 
     private fun parseFallback(html: String, limit: Int): List<WebResult> {
-        val anchors = Regex("(?is)<a(?=[^>]*class=[\"'][^'\"']*result__a)[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>").findAll(html).toList()
+        val anchors = Regex("""(?is)<a(?=[^>]*class=["'][^"']*result__a)[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""")
+            .findAll(html).toList()
         return anchors.mapNotNull {
             val url = decodeRedirect(it.groupValues[1])
             val title = clean(it.groupValues[2])
@@ -72,9 +75,9 @@ object WebSearch {
     }.getOrDefault(raw)
 
     private fun clean(raw: String): String = raw
-        .replace(Regex("(?is)<script.*?</script>|<style.*?</style>"), " ")
-        .replace(Regex("(?s)<[^>]+>"), " ")
+        .replace(Regex("""(?is)<script.*?</script>|<style.*?</style>"""), " ")
+        .replace(Regex("""(?s)<[^>]+>"""), " ")
         .replace("&amp;", "&").replace("&quot;", "\"").replace("&#x27;", "'")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ")
-        .replace(Regex("\\s+"), " ").trim()
+        .replace(Regex("""\s+"""), " ").trim()
 }
