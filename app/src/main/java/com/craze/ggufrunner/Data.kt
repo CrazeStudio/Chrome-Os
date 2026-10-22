@@ -129,28 +129,80 @@ data class ChatMessage(
     val prefillMs: Long = 0
 )
 
-class ChatStore(ctx: Context) {
-    private val file = File(ctx.filesDir, "chat.json")
+data class SavedChat(val id: String, val title: String, val updatedAt: Long, val messages: List<ChatMessage>)
 
-    fun save(list: List<ChatMessage>) {
-        val arr = JSONArray()
+class ChatStore(ctx: Context) {
+    private val activeFile = File(ctx.filesDir, "chat.json")
+    private val sessionsFile = File(ctx.filesDir, "saved_chats.json")
+
+    private fun messagesToJson(list: List<ChatMessage>) = JSONArray().also { arr ->
         list.forEach {
             arr.put(JSONObject().put("id", it.id).put("role", it.role).put("text", it.text)
                 .put("thinkingMs", it.thinkingMs).put("tokens", it.tokens)
                 .put("tps", it.tps.toDouble()).put("prefillMs", it.prefillMs))
         }
-        runCatching { file.writeText(arr.toString()) }
+    }
+
+    private fun jsonToMessages(arr: JSONArray): List<ChatMessage> = (0 until arr.length()).map {
+        val o = arr.getJSONObject(it)
+        ChatMessage(o.getLong("id"), o.getString("role"), o.getString("text"),
+            o.optLong("thinkingMs"), o.optInt("tokens"), o.optDouble("tps").toFloat(), o.optLong("prefillMs"))
+    }
+
+    fun save(list: List<ChatMessage>) {
+        runCatching { activeFile.writeText(messagesToJson(list).toString()) }
     }
 
     fun load(): List<ChatMessage> = runCatching {
-        if (!file.exists()) return emptyList()
-        val arr = JSONArray(file.readText())
-        (0 until arr.length()).map {
-            val o = arr.getJSONObject(it)
-            ChatMessage(o.getLong("id"), o.getString("role"), o.getString("text"),
-                o.optLong("thinkingMs"), o.optInt("tokens"), o.optDouble("tps").toFloat(), o.optLong("prefillMs"))
-        }
+        if (!activeFile.exists()) emptyList() else jsonToMessages(JSONArray(activeFile.readText()))
     }.getOrDefault(emptyList())
+
+    fun saveSession(list: List<ChatMessage>, id: String = sessionIdFor(list)): String {
+        if (list.isEmpty()) return id
+        val all = sessions()
+        val title = list.firstOrNull { it.role == "user" }?.text?.replace(Regex("\\s+"), " ")?.take(56) ?: "New chat"
+        val item = SavedChat(id, title, System.currentTimeMillis(), list.toList())
+        val updated = (all.filterNot { it.id == id } + item).sortedByDescending { it.updatedAt }.take(100)
+        runCatching {
+            val arr = JSONArray()
+            updated.forEach { s ->
+                arr.put(JSONObject().put("id", s.id).put("title", s.title).put("updatedAt", s.updatedAt)
+                    .put("messages", messagesToJson(s.messages)))
+            }
+            sessionsFile.writeText(arr.toString())
+        }
+        return id
+    }
+
+    fun sessions(): List<SavedChat> = runCatching {
+        if (!sessionsFile.exists()) return emptyList()
+        val arr = JSONArray(sessionsFile.readText())
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            SavedChat(o.getString("id"), o.optString("title", "Chat"), o.optLong("updatedAt"),
+                jsonToMessages(o.getJSONArray("messages")))
+        }.sortedByDescending { it.updatedAt }
+    }.getOrDefault(emptyList())
+
+    fun getSession(id: String): SavedChat? = sessions().firstOrNull { it.id == id }
+
+    fun deleteSession(id: String) {
+        val arr = JSONArray()
+        sessions().filterNot { it.id == id }.forEach { s ->
+            arr.put(JSONObject().put("id", s.id).put("title", s.title).put("updatedAt", s.updatedAt)
+                .put("messages", messagesToJson(s.messages)))
+        }
+        runCatching { sessionsFile.writeText(arr.toString()) }
+    }
+
+    private fun sessionIdFor(list: List<ChatMessage>) = list.firstOrNull()?.id?.toString() ?: System.currentTimeMillis().toString()
+}
+
+class SkillStore(private val ctx: Context) {
+    /** Read on each generation so the edited asset is always applied after an app rebuild. */
+    fun readForPrompt(): String = runCatching {
+        ctx.assets.open("skill.md").bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
+    }.getOrDefault("")
 }
 
 // ---------------- <think> parsing ----------------
