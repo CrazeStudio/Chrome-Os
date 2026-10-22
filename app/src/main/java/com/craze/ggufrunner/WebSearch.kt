@@ -4,7 +4,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-data class WebResult(val title: String, val url: String, val snippet: String)
+data class WebResult(val title: String, val url: String, val snippet: String, val pageText: String = "")
 
 object WebSearch {
     fun search(query: String, limit: Int = 5): List<WebResult> {
@@ -32,11 +32,27 @@ object WebSearch {
                 if (title.isBlank()) null else WebResult(title, href, snippet)
             }.distinctBy { it.url }.take(limit)
             // Some DDG markup versions do not wrap each result in result__body; use a title/snippet fallback.
-            if (parsed.isNotEmpty()) parsed else parseFallback(html, limit)
+            val base = if (parsed.isNotEmpty()) parsed else parseFallback(html, limit)
+            base.take(3).map { it.copy(pageText = readPage(it.url)) } + base.drop(3)
         } finally {
             conn.disconnect()
         }
     }
+
+    private fun readPage(url: String): String = runCatching {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true
+            connectTimeout = 7000
+            readTimeout = 9000
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36")
+        }
+        try {
+            if (connection.responseCode !in 200..299) return@runCatching ""
+            val html = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(1_500_000) }
+            clean(html.replace(Regex("(?is)<script.*?</script>|<style.*?</style>|<nav.*?</nav>|<footer.*?</footer>|<header.*?</header>"), " "))
+                .take(4500)
+        } finally { connection.disconnect() }
+    }.getOrDefault("")
 
     private fun parseFallback(html: String, limit: Int): List<WebResult> {
         val anchors = Regex("(?is)<a(?=[^>]*class=[\"'][^'\"']*result__a)[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>").findAll(html).toList()
