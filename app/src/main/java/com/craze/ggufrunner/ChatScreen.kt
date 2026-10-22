@@ -36,6 +36,7 @@ import kotlinx.coroutines.delay
 fun ChatScreen(vm: ChatViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var showModels by remember { mutableStateOf(false) }
+    var showChats by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
 
@@ -65,6 +66,7 @@ fun ChatScreen(vm: ChatViewModel) {
                 actions = {
                     AssistChip(onClick = { showModels = true }, label = { Text("${vm.ramMb} MB") },
                         leadingIcon = { Icon(Icons.Default.List, null, Modifier.size(16.dp)) })
+                    IconButton(onClick = { showChats = true; vm.refreshSavedChats() }) { Icon(Icons.Default.History, "Saved chats") }
                     IconButton(onClick = { vm.newChat() }) { Icon(Icons.Default.Add, "New chat") }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings") }
                 }
@@ -94,13 +96,15 @@ fun ChatScreen(vm: ChatViewModel) {
             }
             InputBar(
                 input, { input = it }, vm.generating, vm.loading,
-                onSend = { vm.send(input); input = "" }, onStop = { vm.stop() }
+                onSend = { vm.send(input); input = "" }, onStop = { vm.stop() },
+                webSearchEnabled = vm.webSearchEnabled, onToggleWeb = { vm.webSearchEnabled = !vm.webSearchEnabled }
             )
         }
     }
 
     if (showSettings) SettingsSheet(vm, onDismiss = { showSettings = false })
     if (showModels) ModelsSheet(vm, onDismiss = { showModels = false })
+    if (showChats) ChatsSheet(vm, onDismiss = { showChats = false })
 }
 
 @Composable
@@ -125,13 +129,17 @@ private fun EmptyState(vm: ChatViewModel, onPick: () -> Unit, onSuggest: (String
 @Composable
 private fun InputBar(
     value: String, onChange: (String) -> Unit, generating: Boolean, loading: Boolean,
-    onSend: () -> Unit, onStop: () -> Unit
+    onSend: () -> Unit, onStop: () -> Unit,
+    webSearchEnabled: Boolean, onToggleWeb: () -> Unit
 ) {
     Surface(tonalElevation = 3.dp) {
         Row(Modifier.fillMaxWidth().padding(8.dp).navigationBarsPadding(), verticalAlignment = Alignment.Bottom) {
+            IconButton(onClick = onToggleWeb, modifier = Modifier.size(44.dp)) {
+                Icon(Icons.Default.Public, "Toggle web search", tint = if (webSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             OutlinedTextField(
                 value = value, onValueChange = onChange, modifier = Modifier.weight(1f),
-                placeholder = { Text("Message") }, maxLines = 5, shape = RoundedCornerShape(24.dp), enabled = !loading
+                placeholder = { Text(if (webSearchEnabled) "Ask with web research…" else "Message") }, maxLines = 5, shape = RoundedCornerShape(24.dp), enabled = !loading
             )
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick = { if (generating) onStop() else onSend() }, enabled = generating || (value.isNotBlank() && !loading)) {
