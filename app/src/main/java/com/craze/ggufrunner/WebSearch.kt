@@ -33,7 +33,7 @@ object WebSearch {
             }.distinctBy { it.url }.take(limit)
             val base = if (parsed.isNotEmpty()) parsed else parseFallback(html, limit)
             // Fetch only the first three result pages to limit latency and data usage.
-            base.take(3).map { it.copy(pageText = readPage(it.url)) } + base.drop(3)
+            base.take(2).map { it.copy(pageText = readPage(it.url)) } + base.drop(2)
         } finally {
             conn.disconnect()
         }
@@ -50,7 +50,7 @@ object WebSearch {
             if (connection.responseCode !in 200..299) return@runCatching ""
             val html = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(1_500_000) }
             clean(html.replace(Regex("""(?is)<script.*?</script>|<style.*?</style>|<nav.*?</nav>|<footer.*?</footer>|<header.*?</header>"""), " "))
-                .take(4500)
+                .take(1800)
         } finally {
             connection.disconnect()
         }
