@@ -1,0 +1,2 @@
+-keep class com.craze.ggufrunner.LlamaBridge { *; }
+-keep interface com.craze.ggufrunner.TokenCallback { *; }
