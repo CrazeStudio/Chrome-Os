@@ -127,3 +127,42 @@ private fun ChipRow(label: String, opts: List<Pair<String, Int>>, sel: Int, onSe
         }
     }
 }
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatsSheet(vm: ChatViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Saved chats", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text("Chats are stored on this device. Up to 100 recent conversations are kept.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(0.7f))
+            if (vm.savedChats.isEmpty()) {
+                Text("No saved chats yet. Start a conversation and it will appear here.", modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                vm.savedChats.forEach { chat ->
+                    Card {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f).clickable {
+                                vm.openChat(chat.id)
+                                onDismiss()
+                            }.padding(vertical = 4.dp)) {
+                                Text(chat.title.ifBlank { "New chat" }, maxLines = 2, fontWeight = FontWeight.Medium)
+                                Text("${chat.messages.size} messages · " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(chat.updatedAt)),
+                                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.alpha(0.65f))
+                            }
+                            IconButton(onClick = { vm.deleteChat(chat.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete saved chat")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
