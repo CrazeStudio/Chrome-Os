@@ -66,7 +66,7 @@ fun ChatScreen(vm: ChatViewModel) {
                 actions = {
                     AssistChip(onClick = { showModels = true }, label = { Text("${vm.ramMb} MB") },
                         leadingIcon = { Icon(Icons.Default.List, null, Modifier.size(16.dp)) })
-                    IconButton(onClick = { showChats = true; vm.refreshSavedChats() }) { Icon(Icons.Default.History, "Saved chats") }
+                    IconButton(onClick = { showChats = true; vm.refreshSavedChats() }) { Icon(Icons.Default.List, "Saved chats") }
                     IconButton(onClick = { vm.newChat() }) { Icon(Icons.Default.Add, "New chat") }
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Settings") }
                 }
@@ -135,7 +135,7 @@ private fun InputBar(
     Surface(tonalElevation = 3.dp) {
         Row(Modifier.fillMaxWidth().padding(8.dp).navigationBarsPadding(), verticalAlignment = Alignment.Bottom) {
             IconButton(onClick = onToggleWeb, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Default.Public, "Toggle web search", tint = if (webSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Default.Search, "Toggle web search", tint = if (webSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedTextField(
                 value = value, onValueChange = onChange, modifier = Modifier.weight(1f),
