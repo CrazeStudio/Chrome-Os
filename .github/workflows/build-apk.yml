@@ -1,4 +1,4 @@
-name: Build GGUFRunner APK
+name: Build Android APK
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build GGUFRunner APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -40,13 +40,12 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build release APK
-        working-directory: GGUFRunner
         run: gradle --no-daemon assembleRelease
 
       - name: Export APK
         uses: actions/upload-artifact@v4
         with:
           name: GGUFRunner-release-apk
-          path: GGUFRunner/app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
